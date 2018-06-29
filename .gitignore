@@ -1,7 +1,0 @@
-*.swp
-target/
-.cache
-.classpath
-.settings
-.project
-/bin/

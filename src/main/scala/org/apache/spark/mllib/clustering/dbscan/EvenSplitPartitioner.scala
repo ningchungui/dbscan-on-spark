@@ -21,14 +21,14 @@ import scala.annotation.tailrec
 import org.apache.spark.internal.Logging
 
 /**
- * Helper methods for calling the partitioner
- */
+  * Helper methods for calling the partitioner
+  */
 object EvenSplitPartitioner {
 
   def partition(
-    toSplit: Set[(DBSCANRectangle, Int)],
-    maxPointsPerPartition: Long,
-    minimumRectangleSize: Double): List[(DBSCANRectangle, Int)] = {
+                 toSplit: Set[(DBSCANRectangle, Int)],
+                 maxPointsPerPartition: Long,
+                 minimumRectangleSize: Double): List[(DBSCANRectangle, Int)] = {
     new EvenSplitPartitioner(maxPointsPerPartition, minimumRectangleSize)
       .findPartitions(toSplit)
   }
@@ -36,18 +36,23 @@ object EvenSplitPartitioner {
 }
 
 class EvenSplitPartitioner(
-  maxPointsPerPartition: Long,
-  minimumRectangleSize: Double) extends Logging {
+                            maxPointsPerPartition: Long,
+                            minimumRectangleSize: Double) extends Logging {
 
   type RectangleWithCount = (DBSCANRectangle, Int)
 
   def findPartitions(toSplit: Set[RectangleWithCount]): List[RectangleWithCount] = {
 
+    //这里拿到所有toSplit中的点,点本身及点的坐标+eps构成的最大长方形，这个长方形包含了所有点
     val boundingRectangle = findBoundingRectangle(toSplit)
 
+    //计算toSplit集合中，包含在传入进来的DBSCANRectangle的个数
     def pointsIn = pointsInRectangle(toSplit, _: DBSCANRectangle)
 
+    //这里拿到分区的个数
     val toPartition = List((boundingRectangle, pointsIn(boundingRectangle)))
+    //toPartition=(DBSCANRectangle(-2.2760000000000002,-1.824,1.872,2.246),749)
+    //toPartition.take(5).foreach(a=>println(a))
     val partitioned = List[RectangleWithCount]()
 
     logTrace("About to start partitioning")
@@ -60,17 +65,21 @@ class EvenSplitPartitioner(
 
   @tailrec
   private def partition(
-    remaining: List[RectangleWithCount],
-    partitioned: List[RectangleWithCount],
-    pointsIn: (DBSCANRectangle) => Int): List[RectangleWithCount] = {
+                         remaining: List[RectangleWithCount],
+                         partitioned: List[RectangleWithCount],
+                         pointsIn: (DBSCANRectangle) => Int): List[RectangleWithCount] = {
 
     remaining match {
+      //将(rectangle, count)加入rest的头部
       case (rectangle, count) :: rest =>
         if (count > maxPointsPerPartition) {
 
           if (canBeSplit(rectangle)) {
             logTrace(s"About to split: $rectangle")
+
+            //返回大矩形点的个数的一半与小矩形点的个数的差
             def cost = (r: DBSCANRectangle) => ((pointsIn(rectangle) / 2) - pointsIn(r)).abs
+
             val (split1, split2) = split(rectangle, cost)
             logTrace(s"Found split: $split1, $split2")
             val s1 = (split1, pointsIn(split1))
@@ -83,6 +92,7 @@ class EvenSplitPartitioner(
           }
 
         } else {
+          // x::list,将x加入到list的头部
           partition(rest, (rectangle, count) :: partitioned, pointsIn)
         }
 
@@ -93,20 +103,19 @@ class EvenSplitPartitioner(
   }
 
   def split(
-    rectangle: DBSCANRectangle,
-    cost: (DBSCANRectangle) => Int): (DBSCANRectangle, DBSCANRectangle) = {
+             rectangle: DBSCANRectangle,
+             cost: (DBSCANRectangle) => Int): (DBSCANRectangle, DBSCANRectangle) = {
 
     val smallestSplit =
       findPossibleSplits(rectangle)
         .reduceLeft {
           (smallest, current) =>
-
+            //这里筛选出了包含点最多的子区域
             if (cost(current) < cost(smallest)) {
               current
             } else {
               smallest
             }
-
         }
 
     (smallestSplit, (complement(smallestSplit, rectangle)))
@@ -114,8 +123,8 @@ class EvenSplitPartitioner(
   }
 
   /**
-   * Returns the box that covers the space inside boundary that is not covered by box
-   */
+    * Returns the box that covers the space inside boundary that is not covered by box
+    */
   private def complement(box: DBSCANRectangle, boundary: DBSCANRectangle): DBSCANRectangle =
     if (box.x == boundary.x && box.y == boundary.y) {
       if (boundary.x2 >= box.x2 && boundary.y2 >= box.y2) {
@@ -134,8 +143,8 @@ class EvenSplitPartitioner(
     }
 
   /**
-   * Returns all the possible ways in which the given box can be split
-   */
+    * Returns all the possible ways in which the given box can be split
+    */
   private def findPossibleSplits(box: DBSCANRectangle): Set[DBSCANRectangle] = {
 
     val xSplits = (box.x + minimumRectangleSize) until box.x2 by minimumRectangleSize
@@ -143,6 +152,7 @@ class EvenSplitPartitioner(
     val ySplits = (box.y + minimumRectangleSize) until box.y2 by minimumRectangleSize
 
     val splits =
+    //++连接两个list
       xSplits.map(x => DBSCANRectangle(box.x, box.y, x, box.y2)) ++
         ySplits.map(y => DBSCANRectangle(box.x, box.y, box.x2, y))
 
@@ -152,12 +162,15 @@ class EvenSplitPartitioner(
   }
 
   /**
-   * Returns true if the given rectangle can be split into at least two rectangles of minimum size
-   */
+    * Returns true if the given rectangle can be split into at least two rectangles of minimum size
+    */
+  //矩形的长或宽大于eps的两倍，则认为能分割
   private def canBeSplit(box: DBSCANRectangle): Boolean = {
     (box.x2 - box.x > minimumRectangleSize * 2 ||
       box.y2 - box.y > minimumRectangleSize * 2)
   }
+
+  //找出集合中包含在rectangle矩形的点
 
   def pointsInRectangle(space: Set[RectangleWithCount], rectangle: DBSCANRectangle): Int = {
     space.view
@@ -169,16 +182,30 @@ class EvenSplitPartitioner(
 
   def findBoundingRectangle(rectanglesWithCount: Set[RectangleWithCount]): DBSCANRectangle = {
 
+    //rectanglesWithCount数据
+    //rectanglesWithCount.take(10).foreach(a => println(a))
+    //    (DBSCANRectangle(0.9500000000000001,1.124,0.9520000000000001,1.1260000000000001),1)
+    //    (DBSCANRectangle(0.486,-1.066,0.488,-1.064),1)
+    //    (DBSCANRectangle(-1.538,-0.512,-1.536,-0.51),1)
+    //    (DBSCANRectangle(0.6980000000000001,-1.186,0.7000000000000001,-1.184),1)
+    //    (DBSCANRectangle(1.27,-0.96,1.272,-0.958),1)
+    //    (DBSCANRectangle(0.968,-0.512,0.97,-0.51),1)
+    //    (DBSCANRectangle(0.356,-0.586,0.358,-0.584),1)
+    //    (DBSCANRectangle(1.006,1.532,1.008,1.534),1)
+    //    (DBSCANRectangle(0.184,-0.47800000000000004,0.186,-0.47600000000000003),1)
+    //    (DBSCANRectangle(0.522,-0.916,0.524,-0.914),1)
+
     val invertedRectangle =
       DBSCANRectangle(Double.MaxValue, Double.MaxValue, Double.MinValue, Double.MinValue)
 
+    //invertedRectangle是初始值，上面已经设定
+    //以下的bounding值，第一次就是invertedRectangle的值，第二次是case语句的返回值
     rectanglesWithCount.foldLeft(invertedRectangle) {
       case (bounding, (c, _)) =>
         DBSCANRectangle(
           bounding.x.min(c.x), bounding.y.min(c.y),
           bounding.x2.max(c.x2), bounding.y2.max(c.y2))
     }
-
   }
 
 }

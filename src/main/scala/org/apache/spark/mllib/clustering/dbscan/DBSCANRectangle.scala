@@ -17,8 +17,9 @@
 package org.apache.spark.mllib.clustering.dbscan
 
 /**
- * A rectangle with a left corner of (x, y) and a right upper corner of (x2, y2)
- */
+  * 一个以(x, y)点为左下角，以(x2, y2)为右上角的矩形
+  * A rectangle with a left corner of (x, y) and a right upper corner of (x2, y2)
+  */
 case class DBSCANRectangle(x: Double, y: Double, x2: Double, y2: Double) {
 
   /**

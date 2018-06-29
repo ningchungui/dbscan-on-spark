@@ -23,11 +23,11 @@ import org.apache.spark.mllib.clustering.dbscan.DBSCANLabeledPoint.Flag
 import org.apache.spark.mllib.linalg.Vectors
 
 /**
- * A naive implementation of DBSCAN. It has O(n2) complexity
- * but uses no extra memory. This implementation is not used
- * by the parallel version of DBSCAN.
- *
- */
+  * A naive implementation of DBSCAN. It has O(n2) complexity
+  * but uses no extra memory. This implementation is not used
+  * by the parallel version of DBSCAN.
+  *
+  */
 class LocalDBSCANNaive(eps: Double, minPoints: Int) extends Logging {
 
   val minDistanceSquared = eps * eps
@@ -38,7 +38,9 @@ class LocalDBSCANNaive(eps: Double, minPoints: Int) extends Logging {
 
     logInfo(s"About to start fitting")
 
-    val labeledPoints = points.map { new DBSCANLabeledPoint(_) }.toArray
+    val labeledPoints = points.map {
+      new DBSCANLabeledPoint(_)
+    }.toArray
 
     val totalClusters =
       labeledPoints
@@ -68,17 +70,18 @@ class LocalDBSCANNaive(eps: Double, minPoints: Int) extends Logging {
   }
 
   private def findNeighbors(
-    point: DBSCANPoint,
-    all: Array[DBSCANLabeledPoint]): Iterable[DBSCANLabeledPoint] =
+                             point: DBSCANPoint,
+                             all: Array[DBSCANLabeledPoint]): Iterable[DBSCANLabeledPoint] =
+  //返回在point点圆周内的点
     all.view.filter(other => {
       point.distanceSquared(other) <= minDistanceSquared
     })
 
   def expandCluster(
-    point: DBSCANLabeledPoint,
-    neighbors: Iterable[DBSCANLabeledPoint],
-    all: Array[DBSCANLabeledPoint],
-    cluster: Int): Unit = {
+                     point: DBSCANLabeledPoint,
+                     neighbors: Iterable[DBSCANLabeledPoint],
+                     all: Array[DBSCANLabeledPoint],
+                     cluster: Int): Unit = {
 
     point.flag = Flag.Core
     point.cluster = cluster
